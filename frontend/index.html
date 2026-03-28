@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NL Test Framework</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<style>
+:root {
+  --bg: #0d1117; --bg2: #161b22; --bg3: #1c2128;
+  --border: #30363d; --border2: #21262d;
+  --text: #e6edf3; --text2: #8b949e; --text3: #484f58;
+  --blue: #58a6ff; --green: #3fb950; --red: #f85149; --orange: #d29922; --purple: #bc8cff;
+  --cyan: #79c0ff;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); height:100vh; overflow:hidden; }
+
+/* Layout */
+.app { display: flex; height: 100vh; }
+.sidebar { width: 280px; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+.main { flex:1; display: flex; flex-direction: column; overflow: hidden; }
+.log-panel { width: 420px; background: var(--bg2); border-left: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+
+/* Sidebar */
+.sidebar-header { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.sidebar-header h1 { font-size: 18px; display: flex; align-items: center; gap: 8px; }
+.sidebar-header h1 span { font-size: 22px; }
+.case-list { flex:1; overflow-y: auto; padding: 8px; }
+.case-item { padding: 12px 14px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; transition: all 0.15s; border: 1px solid transparent; }
+.case-item:hover { background: var(--bg3); }
+.case-item.active { background: var(--bg3); border-color: var(--blue); }
+.case-item .name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.case-item .meta { font-size: 12px; color: var(--text2); display: flex; gap: 8px; }
+.case-item .badge { font-size: 11px; padding: 1px 8px; border-radius: 10px; }
+.badge-ready { background: #1b4332; color: var(--green); }
+.badge-draft { background: #2d2a1a; color: var(--orange); }
+
+/* Chat */
+.chat-header { padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--bg2); display: flex; align-items: center; justify-content: space-between; }
+.chat-header h2 { font-size: 16px; }
+.url-input { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; color: var(--text); font-size: 13px; width: 360px; outline: none; }
+.url-input:focus { border-color: var(--blue); }
+.chat-messages { flex:1; overflow-y: auto; padding: 20px 24px; }
+.message { margin-bottom: 20px; display: flex; gap: 12px; animation: fadeIn 0.2s; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.message.user { flex-direction: row-reverse; }
+.avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.message.bot .avatar { background: linear-gradient(135deg, #1f6feb, #8957e5); }
+.message.user .avatar { background: var(--bg3); border: 1px solid var(--border); }
+.bubble { max-width: 75%; padding: 14px 18px; border-radius: 16px; font-size: 14px; line-height: 1.7; }
+.message.bot .bubble { background: var(--bg2); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.message.user .bubble { background: #1f6feb; border-bottom-right-radius: 4px; }
+.bubble code { background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+.bubble strong { color: var(--blue); }
+.bubble .step-line { padding: 3px 0; font-size: 13px; }
+
+/* Input */
+.chat-input-area { padding: 16px 24px; border-top: 1px solid var(--border); background: var(--bg2); }
+.input-row { display: flex; gap: 10px; }
+.chat-input { flex:1; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; color: var(--text); font-size: 14px; outline: none; resize: none; min-height: 44px; max-height: 120px; font-family: inherit; }
+.chat-input:focus { border-color: var(--blue); }
+.send-btn { background: var(--blue); color: #fff; border: none; border-radius: 12px; padding: 0 20px; cursor: pointer; font-size: 16px; font-weight: 600; transition: all 0.15s; }
+.send-btn:hover { filter: brightness(1.1); }
+.send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Log Panel */
+.log-header { padding: 14px 18px; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; background: var(--bg2); }
+.log-header .count { background: var(--bg3); padding: 2px 10px; border-radius: 10px; font-size: 12px; color: var(--text2); }
+.log-content { flex:1; overflow-y: auto; padding: 8px 12px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; }
+.log-entry { padding: 6px 10px; border-radius: 6px; margin-bottom: 2px; display: flex; gap: 8px; align-items: flex-start; animation: logIn 0.15s; }
+@keyframes logIn { from { opacity: 0; } to { opacity: 1; } }
+.log-entry:hover { background: var(--bg3); }
+.log-time { color: var(--text3); flex-shrink: 0; min-width: 70px; }
+.log-icon { flex-shrink: 0; }
+.log-msg { flex:1; word-break: break-all; }
+.log-detail { color: var(--text3); font-size: 11px; margin-top: 2px; cursor: pointer; }
+.log-detail:hover { color: var(--text2); }
+.log-info .log-msg { color: var(--text); }
+.log-error .log-msg { color: var(--red); }
+.log-warn .log-msg { color: var(--orange); }
+.log-debug .log-msg { color: var(--text2); }
+.log-iframe .log-msg { color: var(--purple); }
+.log-locator .log-msg { color: var(--cyan); }
+.log-action .log-msg { color: var(--green); }
+
+/* Toolbar */
+.log-toolbar { padding: 8px 12px; border-bottom: 1px solid var(--border2); display: flex; gap: 6px; flex-wrap: wrap; }
+.filter-btn { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; color: var(--text2); cursor: pointer; font-size: 11px; transition: all 0.15s; }
+.filter-btn.active { border-color: var(--blue); color: var(--blue); background: rgba(88,166,255,0.1); }
+.clear-btn { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; color: var(--red); cursor: pointer; font-size: 11px; margin-left: auto; }
+
+/* Skills panel in sidebar */
+.sidebar-footer { padding: 12px; border-top: 1px solid var(--border); }
+.skills-btn { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px; color: var(--text); cursor: pointer; font-size: 13px; transition: all 0.15s; }
+.skills-btn:hover { border-color: var(--purple); color: var(--purple); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+/* Thinking animation */
+.thinking { display: inline-flex; gap: 4px; align-items: center; }
+.thinking span { width: 6px; height: 6px; background: var(--text2); border-radius: 50%; animation: bounce 1.4s infinite; }
+.thinking span:nth-child(2) { animation-delay: 0.2s; }
+.thinking span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce { 0%,80%,100% { transform: scale(0); } 40% { transform: scale(1); } }
+</style>
+</head>
+<body>
+<div id="app" class="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h1><span>🧪</span> NL Test</h1>
+    </div>
+    <div class="case-list">
+      <div v-for="c in cases" :key="c.id"
+           class="case-item" :class="{active: selectedCase?.id === c.id}"
+           @click="selectCase(c)">
+        <div class="name">#{{ c.id }} {{ c.name }}</div>
+        <div class="meta">
+          <span class="badge" :class="'badge-'+c.status">{{ c.status }}</span>
+          <span>{{ c.target_url?.substring(0, 30) }}...</span>
+        </div>
+      </div>
+      <div v-if="!cases.length" style="padding:24px;text-align:center;color:var(--text3)">
+        暂无测试用例<br><small>在右侧聊天框输入指令创建</small>
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <button class="skills-btn" @click="showSkills = true">📦 技能包管理 ({{ skills.length }})</button>
+    </div>
+  </div>
+
+  <!-- Main Chat -->
+  <div class="main">
+    <div class="chat-header">
+      <h2>{{ selectedCase ? `用例 #${selectedCase.id}` : '对话式测试' }}</h2>
+      <input class="url-input" v-model="targetUrl" placeholder="目标URL，如 https://baidu.com" @keydown.enter="send">
+    </div>
+    <div class="chat-messages" ref="chatBox">
+      <div v-if="!messages.length" style="text-align:center;padding:60px 20px;color:var(--text3)">
+        <div style="font-size:48px;margin-bottom:16px">🧪</div>
+        <h3 style="margin-bottom:8px;color:var(--text2)">自然语言自动化测试</h3>
+        <p style="font-size:13px;line-height:1.8">
+          用自然语言描述测试场景，系统自动解析并执行。<br>
+          试试输入：<code>打开百度搜索mimo点击百度一下</code>
+        </p>
+      </div>
+      <div v-for="(msg, i) in messages" :key="i" class="message" :class="msg.role">
+        <div class="avatar">{{ msg.role === 'user' ? '👤' : '🤖' }}</div>
+        <div class="bubble" v-html="msg.html"></div>
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <div class="input-row">
+        <textarea class="chat-input" v-model="input" placeholder="输入测试指令，例如：打开 https://baidu.com 搜索 mimo 点击百度一下"
+                  @keydown.enter.exact.prevent="send" rows="1" ref="inputBox"></textarea>
+        <button class="send-btn" @click="send" :disabled="loading">{{ loading ? '...' : '发送' }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log Panel -->
+  <div class="log-panel">
+    <div class="log-header">
+      📋 执行日志 <span class="count">{{ logs.length }}</span>
+    </div>
+    <div class="log-toolbar">
+      <button class="filter-btn" :class="{active: logFilter === 'all'}" @click="logFilter='all'">全部</button>
+      <button class="filter-btn" :class="{active: logFilter === 'info'}" @click="logFilter='info'">信息</button>
+      <button class="filter-btn" :class="{active: logFilter === 'action'}" @click="logFilter='action'">动作</button>
+      <button class="filter-btn" :class="{active: logFilter === 'iframe'}" @click="logFilter='iframe'">iframe</button>
+      <button class="filter-btn" :class="{active: logFilter === 'locator'}" @click="logFilter='locator'">定位</button>
+      <button class="filter-btn" :class="{active: logFilter === 'error'}" @click="logFilter='error'">错误</button>
+      <button class="clear-btn" @click="logs=[]">清空</button>
+    </div>
+    <div class="log-content" ref="logBox">
+      <div v-for="(log, i) in filteredLogs" :key="i" class="log-entry" :class="'log-'+log.level">
+        <span class="log-time">{{ formatTime(log.timestamp) }}</span>
+        <span class="log-icon">{{ levelIcon(log.level) }}</span>
+        <div>
+          <div class="log-msg">{{ log.message }}</div>
+          <div class="log-detail" v-if="log.detail" @click="toggleDetail(i)">
+            {{ expandedLog === i ? JSON.stringify(log.detail, null, 2) : '▸ 详情' }}
+          </div>
+        </div>
+      </div>
+      <div v-if="!logs.length" style="text-align:center;padding:40px;color:var(--text3)">
+        暂无日志
+      </div>
+    </div>
+  </div>
+
+  <!-- Skills Modal -->
+  <div v-if="showSkills" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;display:flex;align-items:center;justify-content:center" @click.self="showSkills=false">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:700px;max-height:80vh;overflow:auto;padding:24px">
+      <h2 style="margin-bottom:16px">📦 技能包管理</h2>
+      <div v-for="s in skills" :key="s.id" style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <strong>{{ s.name }}</strong>
+          <span style="font-size:12px;color:var(--text2)">{{ s.category }} | 优先级: {{ s.priority }}</span>
+        </div>
+        <div style="font-size:13px;color:var(--text2);margin-top:4px">{{ s.description }}</div>
+        <div style="font-size:12px;margin-top:6px">URL模式: <code>{{ s.url_pattern || '全部' }}</code></div>
+        <pre style="background:var(--bg);border-radius:6px;padding:10px;margin-top:8px;font-size:11px;overflow-x:auto;color:var(--cyan)">{{ JSON.stringify(s.rules, null, 2) }}</pre>
+      </div>
+      <button style="margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 20px;color:var(--text);cursor:pointer" @click="showSkills=false">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script>
+const API = window.location.origin + '/api';
+
+const { createApp, ref, computed, nextTick, onMounted } = Vue;
+
+createApp({
+  setup() {
+    const messages = ref([]);
+    const logs = ref([]);
+    const cases = ref([]);
+    const skills = ref([]);
+    const input = ref('');
+    const targetUrl = ref('https://www.baidu.com');
+    const loading = ref(false);
+    const selectedCase = ref(null);
+    const logFilter = ref('all');
+    const expandedLog = ref(null);
+    const showSkills = ref(false);
+    const chatBox = ref(null);
+    const logBox = ref(null);
+    const inputBox = ref(null);
+
+    const filteredLogs = computed(() => {
+      if (logFilter.value === 'all') return logs.value;
+      return logs.value.filter(l => l.level === logFilter.value);
+    });
+
+    async function send() {
+      const text = input.value.trim();
+      if (!text || loading.value) return;
+      input.value = '';
+      loading.value = true;
+
+      addMessage('user', text);
+      addMessage('bot', '<div class="thinking"><span></span><span></span><span></span></div> 正在解析...');
+
+      try {
+        const res = await fetch(API + '/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: text,
+            url: targetUrl.value,
+            case_id: selectedCase.value?.id,
+          }),
+        });
+        const data = await res.json();
+
+        // Remove thinking message
+        messages.value.pop();
+
+        // Add bot reply
+        addMessage('bot', formatReply(data.reply));
+
+        // Add logs
+        if (data.log) {
+          logs.value.push(...data.log);
+          scrollToLog();
+        }
+
+        // Update case
+        if (data.case_id) {
+          selectedCase.value = { id: data.case_id, name: text.substring(0, 30), target_url: targetUrl.value, status: 'ready' };
+          await loadCases();
+        }
+      } catch (e) {
+        messages.value.pop();
+        addMessage('bot', '❌ 请求失败: ' + e.message);
+      }
+      loading.value = false;
+      scrollToChat();
+    }
+
+    function addMessage(role, html) {
+      messages.value.push({ role, html });
+      scrollToChat();
+    }
+
+    function formatReply(text) {
+      return text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\n/g, '<br>')
+        .replace(/(\d+\.\s)/g, '<div class="step-line">$1');
+    }
+
+    function formatTime(ts) {
+      if (!ts) return '';
+      const d = new Date(ts);
+      return d.toTimeString().substring(0, 8);
+    }
+
+    function levelIcon(level) {
+      const icons = { info: 'ℹ️', error: '❌', warn: '⚠️', debug: '🔍', iframe: '📦', locator: '🎯', action: '▶️' };
+      return icons[level] || '•';
+    }
+
+    function toggleDetail(i) {
+      expandedLog.value = expandedLog.value === i ? null : i;
+    }
+
+    function scrollToChat() {
+      nextTick(() => { if (chatBox.value) chatBox.value.scrollTop = chatBox.value.scrollHeight; });
+    }
+
+    function scrollToLog() {
+      nextTick(() => { if (logBox.value) logBox.value.scrollTop = logBox.value.scrollHeight; });
+    }
+
+    async function loadCases() {
+      try {
+        const res = await fetch(API + '/cases?limit=50');
+        cases.value = await res.json();
+      } catch (e) { console.error(e); }
+    }
+
+    async function loadSkills() {
+      try {
+        const res = await fetch(API + '/skills');
+        skills.value = await res.json();
+      } catch (e) { console.error(e); }
+    }
+
+    async function selectCase(c) {
+      selectedCase.value = c;
+      targetUrl.value = c.target_url;
+    }
+
+    onMounted(() => {
+      loadCases();
+      loadSkills();
+      // Seed skills if needed
+      fetch(API + '/skills/seed', { method: 'POST' }).catch(() => {});
+    });
+
+    return {
+      messages, logs, cases, skills, input, targetUrl, loading,
+      selectedCase, logFilter, expandedLog, showSkills,
+      chatBox, logBox, inputBox, filteredLogs,
+      send, formatTime, levelIcon, toggleDetail, selectCase,
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
