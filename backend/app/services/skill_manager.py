@@ -75,7 +75,7 @@ class SkillManager:
         return fnmatch.fnmatch(url, pattern)
 
     def seed_default_skills(self):
-        """Seed some default skills for common scenarios."""
+        """Seed default skills for common scenarios."""
         defaults = [
             {
                 "name": "百度搜索",
@@ -98,9 +98,124 @@ class SkillManager:
                         "value": "#content_left",
                         "timeout_ms": 5000,
                         "description": "等待搜索结果加载"
-                    }
+                    },
+                    "first_result": {
+                        "strategy": "css",
+                        "value": "#content_left .result h3 a",
+                        "description": "第一条搜索结果链接"
+                    },
+                    "result_links": {
+                        "strategy": "css",
+                        "value": "#content_left .result h3 a",
+                        "description": "所有搜索结果链接"
+                    },
+                    "related_searches": {
+                        "strategy": "css",
+                        "value": "#rs a",
+                        "description": "相关搜索关键词"
+                    },
                 },
                 "priority": 10,
+            },
+            {
+                "name": "百度弹窗处理",
+                "description": "百度首页Cookie同意弹窗和登录弹窗的处理规则",
+                "category": "page",
+                "url_pattern": "*baidu.com*",
+                "rules": {
+                    "pre_navigate_actions": [
+                        {
+                            "type": "set_user_agent",
+                            "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                            "description": "伪装UA避免弹窗触发"
+                        }
+                    ],
+                    "post_load_actions": [
+                        {
+                            "type": "js_dismiss",
+                            "selectors": [
+                                "[class*='pop']",
+                                "[class*='dialog']",
+                                "[class*='modal']",
+                                "[class*='mask']",
+                                "[class*='overlay']",
+                                "[class*='cookie']",
+                                "[class*='passport']",
+                                "[class*='login_pop']"
+                            ],
+                            "description": "JS隐藏所有弹窗和遮罩层"
+                        },
+                        {
+                            "type": "js_restore_scroll",
+                            "description": "恢复页面滚动能力"
+                        }
+                    ],
+                    "click_hints": {
+                        "use_force": True,
+                        "reason": "弹窗遮挡时需要force click绕过可见性检查"
+                    },
+                    "dismiss_selectors": [
+                        "button:has-text('接受')",
+                        "a:has-text('接受')",
+                        "[class*='close']",
+                        ".pass_login_close",
+                        "a.close"
+                    ],
+                    "iframe_check": True,
+                    "description": "百度弹窗可能在iframe中，需逐frame处理"
+                },
+                "priority": 20,
+            },
+            {
+                "name": "通用弹窗处理",
+                "description": "网站通用弹窗/模态框/Cookie同意的处理策略",
+                "category": "wait",
+                "url_pattern": "*",
+                "rules": {
+                    "cookie_consent_keywords": [
+                        "接受", "同意", "Accept", "Agree", "Got it",
+                        "我知道了", "同意并继续", "允许", "确认"
+                    ],
+                    "dismiss_strategies": [
+                        {
+                            "type": "text_click",
+                            "priority": 1,
+                            "description": "优先通过按钮文字点击关闭"
+                        },
+                        {
+                            "type": "css_dismiss",
+                            "selectors": [
+                                "[class*='close']",
+                                "[class*='dismiss']",
+                                "[aria-label='Close']",
+                                "button[class*='cookie'] + button",
+                                ".modal .close",
+                                ".dialog-close"
+                            ],
+                            "priority": 2,
+                            "description": "通过CSS选择器定位关闭按钮"
+                        },
+                        {
+                            "type": "js_force_dismiss",
+                            "priority": 3,
+                            "js_snippet": """
+                                document.querySelectorAll(
+                                    '[class*="pop"], [class*="dialog"], [class*="modal"], [class*="mask"], [class*="overlay"], [class*="cookie"], [class*="consent"]'
+                                ).forEach(el => {
+                                    el.style.display = 'none';
+                                    el.style.visibility = 'hidden';
+                                    el.style.pointerEvents = 'none';
+                                });
+                                document.body.style.overflow = 'auto';
+                                document.documentElement.style.overflow = 'auto';
+                            """,
+                            "description": "终极方案：JS暴力隐藏所有弹窗元素"
+                        }
+                    ],
+                    "cross_iframe": True,
+                    "description": "弹窗可能在iframe中，需要检查所有frame"
+                },
+                "priority": 1,
             },
             {
                 "name": "通用等待规则",
@@ -120,6 +235,36 @@ class SkillManager:
                     }
                 },
                 "priority": 1,
+            },
+            {
+                "name": "不可见元素处理",
+                "description": "当元素存在但不可见时的降级策略",
+                "category": "element",
+                "url_pattern": "*",
+                "rules": {
+                    "force_click": {
+                        "enabled": True,
+                        "description": "元素被遮挡时使用force=True强制点击",
+                        "fallback_order": [
+                            "normal_click",
+                            "js_click",
+                            "force_click",
+                            "dispatch_event"
+                        ]
+                    },
+                    "force_fill": {
+                        "enabled": True,
+                        "description": "输入框不可见时使用force=True强制输入",
+                        "fallback_order": [
+                            "normal_fill",
+                            "js_set_value",
+                            "force_fill"
+                        ]
+                    },
+                    "visibility_timeout_ms": 5000,
+                    "description": "元素可见性等待超时后自动降级到force模式"
+                },
+                "priority": 5,
             },
         ]
 
